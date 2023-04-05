@@ -15,24 +15,46 @@ public class Logger {
         this.object = object;
     }
 
-    public void log(final String message) {
+    public synchronized void log(final String message) {
         final long ms = System.currentTimeMillis();
         final Date date = new Date(ms);
         String logMessage;
         if (this.object != null)
-            logMessage = String.format("%s %30s: %-60s       | %s", format.format(date), className, message, this.object.toString());
+            logMessage = String.format("%s  [%-30s]  %-60s       | %s", format.format(date), StringUtils.center(className, 30), message, this.object.toString());
         else
-            logMessage = String.format("%s %30s: %s", format.format(date), className, message);
+            logMessage = String.format("%s  [%-30s]  %s", format.format(date), StringUtils.center(className, 30), message);
         System.out.println(logMessage);
     }
 
 
-    public static Logger loggerOfStatic(final Class<?> component) {
+    public static synchronized Logger loggerOfStatic(final Class<?> component) {
         return new Logger(component.getSimpleName(), null);
     }
 
-    public static Logger loggerOfObject(final Object object) {
+    public static synchronized Logger loggerOfObject(final Object object) {
         return new Logger(object.getClass().getCanonicalName(), object);
+    }
+
+    class StringUtils {
+
+        public static String center(String s, int size) {
+            return center(s, size, ' ');
+        }
+
+        public static String center(String s, int size, char pad) {
+            if (s == null || size <= s.length())
+                return s;
+
+            StringBuilder sb = new StringBuilder(size);
+            for (int i = 0; i < (size - s.length()) / 2; i++) {
+                sb.append(pad);
+            }
+            sb.append(s);
+            while (sb.length() < size) {
+                sb.append(pad);
+            }
+            return sb.toString();
+        }
     }
 
 }

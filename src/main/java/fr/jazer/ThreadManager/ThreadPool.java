@@ -23,15 +23,14 @@ public class ThreadPool {
     public void exe(final Runnable runnable) {
         synchronized (slaves) {
             for (final Slave slave : slaves) {
-                logger.log("Slave " + slave.getName() + " Working.");
                 if (slave.isFree()) {
+                    logger.log("Executing on " + slave.getName() + ".");
                     slave.workOn(runnable);
-                    logger.log("Slave " + slave.getName() + " executing a task.");
                     return;
                 }
             }
-            final Slave slave = new Slave("Pool " + this.poolNb + " -> Slave " + slaves.size(), this);
-            logger.log("Creating slave : " + "Pool " + this.poolNb + " -> Slave " + slaves.size());
+            final Slave slave = new Slave("Slave " + slaves.size(), this);
+            logger.log("Creating slave : " + "Slave " + slaves.size() + " executing on " + slave.getName() + ".");
             slaves.add(slave);
             slave.workOn(runnable);
         }
@@ -42,7 +41,7 @@ public class ThreadPool {
             if (slave.task != null)
                 return false;
             slaves.remove(slave);
-            logger.log("Free slave : " + slave.getName() + " current threads running : " + slaves.size());
+            logger.log(slave.getName() + " free. Current " + slaves.size() + " slaves alive.");
             return true;
         }
     }
@@ -52,30 +51,25 @@ public class ThreadPool {
         protected final Thread worker;
         protected boolean alwaysServing;
 
-        protected final Object key = new Object();
-
         protected Runnable task;
 
         public Slave(final String name, final ThreadPool master) {
             this.alwaysServing = true;
             this.worker = new Thread(() -> {
-                synchronized (key) {
+                while (alwaysServing) {
                     try {
-                        while (alwaysServing) {
-                            key.wait(2000);
-                            if (task == null && master.freeSlave(this))
-                                this.alwaysServing = false;
-                            if (task != null)
-                                try {
-                                    this.task.run();
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-                            this.task = null;
-                        }
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
+                        Thread.sleep(2000);
+                    } catch (InterruptedException ignored) {
                     }
+                    if (task == null && master.freeSlave(this))
+                        this.alwaysServing = false;
+                    if (task != null)
+                        try {
+                            this.task.run();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    this.task = null;
                 }
             });
             this.worker.setName(name);
@@ -89,9 +83,7 @@ public class ThreadPool {
             }
 
             this.task = task;
-            synchronized (key) {
-                this.key.notify();
-            }
+            this.worker.interrupt();
         }
 
         protected boolean isFree() {

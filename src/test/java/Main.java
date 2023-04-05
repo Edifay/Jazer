@@ -1,34 +1,37 @@
 import fr.jazer.ThreadManager.ThreadPool;
 import fr.jazer.logger.Logger;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+
 public class Main {
-
-    private static Logger logger = Logger.loggerOfStatic(Logger.class);
-
-    private static ThreadPool threadPool = new ThreadPool();
-
-
     public static void main(String[] args) {
-        for (int i = 0; i < 3; i++) {
-            threadPool.exe(() -> {
-                try {
-                    Thread.sleep(5000);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+
+        Thread Thread_B = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                synchronized (this) {
+                    int i = 0;
+                    while (i < 100)
+                        i++;
+                    //libérer le thread A
+                    notify();
                 }
-            });
-            threadPool.exe(() -> {});
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
             }
-            threadPool.exe(() -> {});
+        });
+        Thread_B.start();
+
+        synchronized (Thread_B) {
             try {
-                Thread.sleep(100);
+                System.out.println("Thread A est bloqué - En attente de thread B" +
+                                   "qu'il termine");
+                //mettre en attente le thread A
+                Thread_B.wait();
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                // TODO Auto-generated catch block
+                e.printStackTrace();
             }
+            System.out.println("le thread B a terminé - Le thread A est relaché");
         }
     }
 }
