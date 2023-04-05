@@ -6,6 +6,7 @@ import java.util.ArrayList;
 
 public class ThreadPool {
 
+    private static final long DEFAULT_LIVE_TIME = 20000;
     private static int currentPool = 0;
 
     private static Logger logger = Logger.loggerOfStatic(ThreadPool.class);
@@ -13,11 +14,17 @@ public class ThreadPool {
     protected final ArrayList<Slave> slaves;
 
     protected final int poolNb;
+    protected final long liveTime;
 
-    public ThreadPool() {
+    public ThreadPool(final long liveTime) {
         this.slaves = new ArrayList<>();
+        this.liveTime = liveTime;
         this.poolNb = currentPool;
         currentPool++;
+    }
+
+    public ThreadPool(){
+        this(DEFAULT_LIVE_TIME);
     }
 
     public void exe(final Runnable runnable) {
@@ -29,7 +36,7 @@ public class ThreadPool {
                     return;
                 }
             }
-            final Slave slave = new Slave("Slave " + slaves.size(), this);
+            final Slave slave = new Slave("Slave " + slaves.size(), liveTime, this);
             logger.log("Creating slave : " + "Slave " + slaves.size() + " executing on " + slave.getName() + ".");
             slaves.add(slave);
             slave.workOn(runnable);
@@ -50,15 +57,16 @@ public class ThreadPool {
 
         protected final Thread worker;
         protected boolean alwaysServing;
-
         protected Runnable task;
+        protected final long liveTime;
 
-        public Slave(final String name, final ThreadPool master) {
+        public Slave(final String name, final long liveTime, final ThreadPool master) {
             this.alwaysServing = true;
+            this.liveTime = liveTime;
             this.worker = new Thread(() -> {
                 while (alwaysServing) {
                     try {
-                        Thread.sleep(2000);
+                        Thread.sleep(liveTime);
                     } catch (InterruptedException ignored) {
                     }
                     if (task == null && master.freeSlave(this))

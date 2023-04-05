@@ -1,5 +1,7 @@
 package fr.jazer.session;
 
+import fr.jazer.ThreadManager.ThreadPool;
+
 import java.io.IOException;
 import java.net.Socket;
 
@@ -14,6 +16,9 @@ public class Session {
     protected final Object lockerSend = new Object();
     protected final Object lockerRead = new Object();
     protected final Object lockerConnect = new Object();
+
+    protected final ThreadPool executor = new ThreadPool();
+    
 
     public Session() {
         this.sessionType = SessionType.CLIENT_SIDE;
@@ -32,13 +37,13 @@ public class Session {
         return this.status;
     }
 
-    public ConnexionStatus connect(final String address, final int port) {
+    public ConnexionStatus connect(final String address, final int port, final CertConfig certConfig) {
         synchronized (this.lockerConnect) {
             if (isServerSide(this.sessionType) || this.isConnected())
                 return this.status;
             try {
                 final Socket newSocket;
-                if ((newSocket = new Socket(address, port)).isConnected()) {
+                if ((newSocket = constructSocket(address, port, certConfig)).isConnected() && integrityCheck(newSocket)) {
                     this.socket = newSocket;
                     setStatus(ConnexionStatus.CONNECTED);
                 }
@@ -49,16 +54,17 @@ public class Session {
         }
     }
 
+    private ConnexionStatus connect(final String address, final int port) {
+        return connect(address, port, null);
+    }
+
     public boolean isConnected() {
         return ConnexionStatus.isConnected(this.status);
     }
 
-    public void integrityCheck() {
-
-    }
-
-    public void handShake() {
-
+    public boolean integrityCheck(final Socket socket) {
+        // TODO make the handshake exchange a client key.
+        return true;
     }
 
     public boolean setStatus(final ConnexionStatus status) {
@@ -71,5 +77,14 @@ public class Session {
     public Socket getSocket() {
         return this.socket;
     }
+
+    private Socket constructSocket(final String address, final int port, final CertConfig certConfig) throws IOException {
+        if (certConfig == null)
+            return new Socket(address, port);
+        else
+            throw new IOException("NOT IMPLEMENTED METHOD !");
+    }
+
+
 
 }
