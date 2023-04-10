@@ -6,10 +6,10 @@ import java.util.ArrayList;
 
 public class ThreadPool {
 
+    private static Logger logger = Logger.loggerOfStatic(ThreadPool.class);
+
     private static final long DEFAULT_LIVE_TIME = 20000;
     private static int currentPool = 0;
-
-    private static Logger logger = Logger.loggerOfStatic(ThreadPool.class);
 
     protected final ArrayList<Slave> slaves;
 

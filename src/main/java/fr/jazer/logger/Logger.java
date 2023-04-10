@@ -20,9 +20,20 @@ public class Logger {
         final Date date = new Date(ms);
         String logMessage;
         if (this.object != null)
-            logMessage = String.format("%s  [%-30s]  %-60s       | %s", format.format(date), StringUtils.center(className, 30), message, this.object.toString());
+            logMessage = String.format("%s  [OUT]  [%-30s]  %-60s       | %s", format.format(date), StringUtils.center(className, 30), message, this.object.toString());
         else
-            logMessage = String.format("%s  [%-30s]  %s", format.format(date), StringUtils.center(className, 30), message);
+            logMessage = String.format("%s  [OUT]  [%-30s]  %s", format.format(date), StringUtils.center(className, 30), message);
+        System.out.println(logMessage);
+    }
+
+    public synchronized void err(final String message) {
+        final long ms = System.currentTimeMillis();
+        final Date date = new Date(ms);
+        String logMessage;
+        if (this.object != null)
+            logMessage = String.format("%s  [ERR]  [%-30s]  %-60s       | %s", format.format(date), StringUtils.center(className, 30), message, this.object.toString());
+        else
+            logMessage = String.format("%s  [ERR]  [%-30s]  %s", format.format(date), StringUtils.center(className, 30), message);
         System.out.println(logMessage);
     }
 
