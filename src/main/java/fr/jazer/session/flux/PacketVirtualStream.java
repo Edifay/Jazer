@@ -1,6 +1,6 @@
 package fr.jazer.session.flux;
 
-import fr.jazer.ThreadManager.ThreadPool;
+import fr.jazer.thread_manager.ThreadPool;
 
 import java.util.*;
 import java.util.concurrent.BlockingQueue;

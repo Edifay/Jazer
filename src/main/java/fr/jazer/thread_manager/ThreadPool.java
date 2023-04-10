@@ -1,4 +1,4 @@
-package fr.jazer.ThreadManager;
+package fr.jazer.thread_manager;
 
 import fr.jazer.logger.Logger;
 

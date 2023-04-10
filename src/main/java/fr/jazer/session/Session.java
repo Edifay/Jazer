@@ -1,6 +1,6 @@
 package fr.jazer.session;
 
-import fr.jazer.ThreadManager.ThreadPool;
+import fr.jazer.thread_manager.ThreadPool;
 import fr.jazer.logger.Logger;
 import fr.jazer.session.flux.PacketVirtualStream;
 import fr.jazer.session.flux.Receiver;
