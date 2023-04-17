@@ -1,6 +1,6 @@
 package fr.jazer.session;
 
-import fr.jazer.session.flux.TaggedEntity;
+import fr.jazer.session.stream.TaggedEntity;
 
 import java.nio.charset.StandardCharsets;
 

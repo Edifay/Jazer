@@ -1,4 +1,4 @@
-package fr.jazer.session.flux;
+package fr.jazer.session.stream;
 
 import fr.jazer.thread_manager.ThreadPool;
 
@@ -81,7 +81,6 @@ public class PacketVirtualStream<T extends TaggedEntity> {
 
     public void close(final T terminal) {
         this.closed = true;
-        System.out.println("Closing !");
         this.queue.forEach((integer, ts) -> {
             try {
                 ts.put(terminal);

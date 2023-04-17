@@ -1,4 +1,4 @@
-package fr.jazer.session;
+package fr.jazer.session.utils;
 
 public enum SessionType {
     SERVER_SIDE,

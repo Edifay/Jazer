@@ -1,17 +1,27 @@
 package fr.jazer.session;
 
+import fr.jazer.session.utils.crypted.ClientCertConfig;
+import fr.jazer.session.utils.crypted.SSLSocketKeystoreFactory;
+import fr.jazer.session.utils.ConnexionStatus;
+import fr.jazer.session.utils.SessionType;
 import fr.jazer.thread_manager.ThreadPool;
 import fr.jazer.logger.Logger;
-import fr.jazer.session.flux.PacketVirtualStream;
-import fr.jazer.session.flux.Receiver;
-import fr.jazer.session.flux.VirtualStream;
+import fr.jazer.session.stream.PacketVirtualStream;
+import fr.jazer.session.stream.Receiver;
+import fr.jazer.session.stream.VirtualStream;
+import org.jetbrains.annotations.Nullable;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 
-import static fr.jazer.session.SessionType.isServerSide;
+import static fr.jazer.session.utils.SessionType.isServerSide;
 
 public class Session implements Receiver<ConnexionStatus> {
 
@@ -26,7 +36,7 @@ public class Session implements Receiver<ConnexionStatus> {
     private long lastConnected;
 
 
-    protected ThreadPool executor = new ThreadPool();
+    protected final ThreadPool executor = new ThreadPool();
     protected Thread reader;
 
 
@@ -36,7 +46,6 @@ public class Session implements Receiver<ConnexionStatus> {
 
     protected final Object lockerSend = new Object();
     protected final Object lockerConnect = new Object();
-
 
     protected Logger logger = Logger.loggerOfObject(this);
 
@@ -57,7 +66,6 @@ public class Session implements Receiver<ConnexionStatus> {
         return this.socket;
     }
 
-
     public boolean isConnected() {
         return ConnexionStatus.isConnected(this.status);
     }
@@ -66,34 +74,38 @@ public class Session implements Receiver<ConnexionStatus> {
         return connect(address, port, null);
     }
 
-    public ConnexionStatus connect(final String address, final int port, final CertConfig certConfig) {
+    public ConnexionStatus connect(final String address, final int port, @Nullable final ClientCertConfig clientCertConfig) {
         synchronized (this.lockerConnect) {
             if (isServerSide(this.sessionType) || this.isConnected())
                 return this.status;
             try {
                 final Socket newSocket;
-                if ((newSocket = constructSocket(address, port, certConfig)).isConnected() && integrityCheck(newSocket)) {
+                if ((newSocket = constructSocket(address, port, clientCertConfig)).isConnected() && integrityCheck(newSocket)) {
                     this.socket = newSocket;
                     setStatus(ConnexionStatus.CONNECTED);
                 }
             } catch (IOException e) {
                 logger.err("Handled output : " + e.getMessage());
+            } catch (CertificateException | NoSuchAlgorithmException | KeyStoreException | KeyManagementException e) {
+                logger.err("Couldn't create secured socket : " + e.getMessage());
             }
             return this.status;
         }
     }
 
-    public ConnexionStatus reconnect() {
-        if (socket != null)
+    public ConnexionStatus reconnect(final boolean secured) {
+        if (secured)
+            new IllegalStateException("Session.reconnect() method cannot be used on SECURED Session.").printStackTrace();
+        if (!secured && socket != null)
             return connect(socket.getInetAddress().getHostAddress(), socket.getPort());
         return this.status;
     }
 
-    protected Socket constructSocket(final String address, final int port, final CertConfig certConfig) throws IOException {
-        if (certConfig == null)
+    protected Socket constructSocket(final String address, final int port, @Nullable final ClientCertConfig clientCertConfig) throws IOException, CertificateException, NoSuchAlgorithmException, KeyStoreException, KeyManagementException {
+        if (clientCertConfig == null)
             return new Socket(address, port);
         else
-            throw new IOException("NOT IMPLEMENTED METHOD !");
+            return SSLSocketKeystoreFactory.getSocketWithCert(address, port, clientCertConfig.input(), clientCertConfig.password(), clientCertConfig.secureType(), clientCertConfig.format());
     }
 
     protected boolean integrityCheck(final Socket socket) {
@@ -101,7 +113,7 @@ public class Session implements Receiver<ConnexionStatus> {
         return true;
     }
 
-    public boolean setStatus(final ConnexionStatus status) {
+    protected boolean setStatus(final ConnexionStatus status) {
         synchronized (this.lockerConnect) {
             if (this.status == status)
                 return false;
@@ -137,7 +149,7 @@ public class Session implements Receiver<ConnexionStatus> {
         this.statusFlux.removeReceiver(statusReceiver);
     }
 
-    public ConnexionStatus waitStatusChange() {
+    public ConnexionStatus nextStatus() {
         return this.statusFlux.readASlash();
     }
 
@@ -153,6 +165,7 @@ public class Session implements Receiver<ConnexionStatus> {
                         .putInt(packet.packetNumber)
                         .put(packet.data)
                         .array();
+                // TODO may be use a BufferedOutputStream to speed up the transfer !
                 socket.getOutputStream().write(buf);
                 socket.getOutputStream().flush();
                 return true;
@@ -187,65 +200,76 @@ public class Session implements Receiver<ConnexionStatus> {
 
     @Override
     public void onChanged(ConnexionStatus value) {
-        if (value == ConnexionStatus.DISCONNECTED) {
+        synchronized (this.lockerConnect) {
+            if (value == ConnexionStatus.DISCONNECTED) {
 
-            this.reader.interrupt();
-            lastConnected = System.currentTimeMillis();
+                this.reader.interrupt();
+                lastConnected = System.currentTimeMillis();
 
-            executor.exe(() -> {
-                final long lastConnectedTemp = lastConnected;
-                try {
-                    Thread.sleep(sessionTimeOut);
-                } catch (InterruptedException ignored) {
+                executor.exe(() -> {
+                    final long lastConnectedTemp = lastConnected;
+                    try {
+                        Thread.sleep(sessionTimeOut);
+                    } catch (InterruptedException ignored) {
+                    }
+                    if (this.status != ConnexionStatus.DESTROYED && lastConnected == lastConnectedTemp) {
+                        logger.log("Session TIME OUT.");
+                        setStatus(ConnexionStatus.DESTROYED);
+                    }
+                });
+
+            } else if (value == ConnexionStatus.CONNECTED) {
+
+                if (this.reader != null && this.reader.isAlive()) {
+                    logger.err("COULDN'T CREATE A READER. A READER ALREADY EXIST !");
+                    return;
                 }
-                if (lastConnected == lastConnectedTemp)
-                    setStatus(ConnexionStatus.DESTROYED);
-            });
 
-        } else if (value == ConnexionStatus.CONNECTED) {
+                this.reader = new Thread(this::internalReadLoop);
+                this.reader.start();
 
-            if (this.reader != null && this.reader.isAlive()) {
-                logger.err("COULDN'T CREATE A READER. A READER ALREADY EXIST !");
-                return;
+            } else if (status == ConnexionStatus.DESTROYED) {
+
+                logger.log("Session Destroyed.");
+                if (!this.statusFlux.isClosed()) {
+                    this.statusFlux.removeReceiver(this);
+                    this.statusFlux.close(ConnexionStatus.DESTROYED);
+                }
+                if (!this.packetFlux.isClosed())
+                    this.packetFlux.close(new RPacket(0, new byte[0]));
+
+                this.executor.destroy();
+
+            }
+        }
+    }
+
+    private void internalReadLoop() {
+        try {
+            logger.log("READER STARTED !");
+
+            InputStream in = new BufferedInputStream(socket.getInputStream());
+            byte[] intBuffer = new byte[4];
+            int packetSize;
+            int packetNumber;
+
+            while (this.isConnected() && in.read(intBuffer) != -1) {
+                packetSize = ByteBuffer.wrap(intBuffer).getInt();
+                in.read(intBuffer);
+                packetNumber = ByteBuffer.wrap(intBuffer).getInt();
+                byte[] datas = new byte[packetSize];
+                in.read(datas);
+                this.packetFlux.emitValue(new RPacket(packetNumber, datas));
             }
 
-            this.reader = new Thread(() -> {
-                try {
-                    logger.log("READER STARTED !");
+            logger.log("Reader closing, other part closed the Session.");
+            setStatus(ConnexionStatus.DISCONNECTED);
 
-                    InputStream in = (socket.getInputStream());
-                    byte[] intBuffer = new byte[4];
-                    int packetSize;
-                    int packetNumber;
-
-                    while (this.status == ConnexionStatus.CONNECTED && in.read(intBuffer) != -1) {
-                        packetSize = ByteBuffer.wrap(intBuffer).getInt();
-                        in.read(intBuffer);
-                        packetNumber = ByteBuffer.wrap(intBuffer).getInt();
-                        byte[] datas = new byte[packetSize];
-                        in.read(datas);
-                        this.packetFlux.emitValue(new RPacket(packetNumber, datas));
-                    }
-
-                    logger.log("Reader closing, other part closed the Session.");
-                    setStatus(ConnexionStatus.DISCONNECTED);
-
-                } catch (Exception e) {
-                    if (this.status != ConnexionStatus.CONNECTED)
-                        logger.log("Reader stopped by closing the socket. " + e.getMessage());
-                    else
-                        e.printStackTrace();
-                }
-            });
-            this.reader.start();
-
-        } else if (status == ConnexionStatus.DESTROYED) {
-
-            if (!this.statusFlux.isClosed())
-                this.statusFlux.close(ConnexionStatus.DESTROYED);
-            if (!this.packetFlux.isClosed())
-                this.packetFlux.close(new RPacket(0, new byte[0]));
-
+        } catch (Exception e) {
+            if (!this.isConnected())
+                logger.log("Reader stopped by closing the socket. " + e.getMessage());
+            else
+                e.printStackTrace();
         }
     }
 

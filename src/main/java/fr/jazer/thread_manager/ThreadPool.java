@@ -23,7 +23,7 @@ public class ThreadPool {
         currentPool++;
     }
 
-    public ThreadPool(){
+    public ThreadPool() {
         this(DEFAULT_LIVE_TIME);
     }
 
@@ -40,6 +40,13 @@ public class ThreadPool {
             logger.log("Creating slave : " + "Slave " + slaves.size() + " executing on " + slave.getName() + ".");
             slaves.add(slave);
             slave.workOn(runnable);
+        }
+    }
+
+    public void destroy() {
+        synchronized (slaves) {
+            for (final Slave slave : slaves)
+                slave.worker.interrupt();
         }
     }
 

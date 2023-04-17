@@ -1,4 +1,4 @@
-package fr.jazer.session.flux;
+package fr.jazer.session.stream;
 
 import fr.jazer.thread_manager.ThreadPool;
 

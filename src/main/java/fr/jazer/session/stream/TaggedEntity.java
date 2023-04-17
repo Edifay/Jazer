@@ -1,4 +1,4 @@
-package fr.jazer.session.flux;
+package fr.jazer.session.stream;
 
 public interface TaggedEntity {
     int getTag();
