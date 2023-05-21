@@ -215,4 +215,20 @@ public class SessionServer implements Receiver<SessionServerStatus> {
             }
         }
     }
+
+    @Override
+    public String toString() {
+        return "SessionServer{" +
+                "server=" + server +
+                ", status=" + status +
+                ", sessionTimeOut=" + sessionTimeOut +
+                ", lastOpen=" + lastOpen +
+                ", executor=" + executor +
+                ", clientListener=" + clientListener +
+                ", sessionsFlux=" + sessionsFlux +
+                ", statusFlux=" + statusFlux +
+                ", lockerOpen=" + lockerOpen +
+                ", logger=" + logger +
+                '}';
+    }
 }
