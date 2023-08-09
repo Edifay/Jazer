@@ -12,10 +12,10 @@ import fr.jazer.session.stream.VirtualStream;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.security.KeyManagementException;
 import java.security.KeyStoreException;
@@ -247,6 +247,8 @@ public class Session implements Receiver<ConnectionStatus> {
      * This method destroy this session, with closing {@link Session#socket} and destroying {@link Session#statusFlux} and {@link Session#packetFlux}.
      */
     public void destroy() {
+        if (this.status == ConnectionStatus.DESTROYED)
+            return;
         setStatus(ConnectionStatus.DISCONNECTED);
         setStatus(ConnectionStatus.DESTROYED);
         try {
@@ -289,12 +291,15 @@ public class Session implements Receiver<ConnectionStatus> {
     public boolean send(final SPacket packet) {
         synchronized (this.lockerSend) {
             try {
-                // TODO may be use a BufferedOutputStream to speed up the transfer !
                 socket.getOutputStream().write(ByteBuffer.allocate(4).putInt(packet.data.length).array());
                 socket.getOutputStream().write(ByteBuffer.allocate(4).putInt(packet.packetNumber).array());
                 socket.getOutputStream().write(packet.data);
                 socket.getOutputStream().flush();
+
                 return true;
+            } catch (SocketException e) {
+                this.setStatus(ConnectionStatus.DISCONNECTED);
+                return false;
             } catch (IOException e) {
                 e.printStackTrace();
                 logger.err("COULD'T SEND RETURN FALSE.");
@@ -402,7 +407,7 @@ public class Session implements Receiver<ConnectionStatus> {
 
     public String getStringID() {
         return "Session{" +
-                "id=" + socket.getInetAddress().getHostName()
+                "id=" + socket.getInetAddress()
                 + ", port=" + socket.getPort() + "}";
     }
 

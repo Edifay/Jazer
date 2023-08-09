@@ -18,7 +18,7 @@ public class Logger {
     /**
      * The format used to date all outputs.
      */
-    private static final SimpleDateFormat format = new SimpleDateFormat("[HH:mm:ss dd/MM]");
+    private static final SimpleDateFormat format = new SimpleDateFormat("[HH:mm:ss.SSS dd/MM]");
 
     /**
      * The name of the class using this Logger.

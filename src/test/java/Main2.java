@@ -17,9 +17,12 @@ public class Main2 {
         server.addSessionListener(session -> {
             String s = null;
             try {
-                s = new Scanner(new File("./packet-4.txt")).nextLine();
-                //System.out.println(s);
-                session.send(new SPacket(4).writeString(s));
+                s = s = new Scanner(new File("./packet-4.txt")).nextLine();
+
+                for (int i = 0; i < 100; i++) {
+                    session.send(new SPacket(4).writeString(s));
+
+                }
             } catch (FileNotFoundException e) {
                 throw new RuntimeException(e);
             }
@@ -27,17 +30,14 @@ public class Main2 {
 
 
         Session session = new Session();
-        session.connect("localhost", 8888);
+        session.connect("192.168.1.37", 8888);
 
-        try {
-            FileOutputStream output = new FileOutputStream("./receive-4.txt");
+
+        for (int i = 0; i < 100; i++) {
+            long ms = System.currentTimeMillis();
             RPacket packet = session.read(4);
             packet.readString();
-            output.write(packet.getData());
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            System.out.println("Took : " + (System.currentTimeMillis() - ms) + "ms");
         }
 
     }

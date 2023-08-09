@@ -1,6 +1,7 @@
 package fr.jazer.thread_manager;
 
 import fr.jazer.logger.Logger;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 
@@ -71,10 +72,9 @@ public class ThreadPool {
                     return;
                 }
             }
-            final Slave slave = new Slave("Slave " + slaves.size(), liveTime, this);
-            logger.log("Creating slave : " + "Slave " + slaves.size() + " executing on " + slave.getName() + ".");
+            final Slave slave = new Slave("Slave " + slaves.size(), liveTime, this, runnable);
+            logger.log("Creating slave : " + "Slave " + slaves.size() + " & executing on " + slave.getName() + ".");
             slaves.add(slave);
-            slave.workOn(runnable);
         }
     }
 
@@ -131,26 +131,33 @@ public class ThreadPool {
          */
         protected final long liveTime;
 
+
+        public Slave(final String name, final long liveTime, final ThreadPool master) {
+            this(name, liveTime, master, null);
+        }
+
         /**
          * Create a new Thread.
-         * The Thread sleep before receiving a new task.
+         * If a task is given as param, the task will be directly executed with out sleeping before.
          *
          * @param name     the name of the Slave.
          * @param liveTime the time a Slave is waiting before asking for release.
          * @param master   the ThreadPool owning this Slave.
          */
-        public Slave(final String name, final long liveTime, final ThreadPool master) {
+        public Slave(final String name, final long liveTime, final ThreadPool master, @Nullable final Runnable task) {
             this.alwaysServing = true;
             this.liveTime = liveTime;
+            this.task = task;
             this.worker = new Thread(() -> {
                 while (alwaysServing) {
                     try {
-                        Thread.sleep(liveTime);
+                        if (this.task == null)
+                            Thread.sleep(liveTime);
                     } catch (InterruptedException ignored) {
                     }
-                    if (task == null && master.freeSlave(this))
+                    if (this.task == null && master.freeSlave(this))
                         this.alwaysServing = false;
-                    if (task != null)
+                    if (this.task != null)
                         try {
                             this.task.run();
                         } catch (Exception e) {
