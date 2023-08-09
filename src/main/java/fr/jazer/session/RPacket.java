@@ -48,7 +48,7 @@ public class RPacket implements TaggedEntity {
      * @return use the {@link RPacket#data} to parse a String encoded with UTF_8.
      */
     public String readString() {
-        return new String(data, StandardCharsets.UTF_8);
+        return new String(this.data, StandardCharsets.UTF_8);
     }
 
     @Override

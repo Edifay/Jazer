@@ -92,7 +92,7 @@ public class Logger {
     /**
      * UTILS.
      */
-    class StringUtils {
+    static class StringUtils {
 
         public static String center(String s, int size) {
             return center(s, size, ' ');

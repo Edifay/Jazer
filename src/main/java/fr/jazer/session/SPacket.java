@@ -25,6 +25,7 @@ public class SPacket implements TaggedEntity {
      */
     public SPacket(final int packetNumber) {
         this.packetNumber = packetNumber;
+        this.data = new byte[0];
     }
 
     /**

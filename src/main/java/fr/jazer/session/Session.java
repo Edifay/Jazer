@@ -2,7 +2,7 @@ package fr.jazer.session;
 
 import fr.jazer.session.utils.crypted.ClientCertConfig;
 import fr.jazer.session.utils.crypted.SSLSocketKeystoreFactory;
-import fr.jazer.session.utils.ConnexionStatus;
+import fr.jazer.session.utils.ConnectionStatus;
 import fr.jazer.session.utils.SessionType;
 import fr.jazer.thread_manager.ThreadPool;
 import fr.jazer.logger.Logger;
@@ -12,6 +12,7 @@ import fr.jazer.session.stream.VirtualStream;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
@@ -23,7 +24,7 @@ import java.security.cert.CertificateException;
 
 import static fr.jazer.session.utils.SessionType.isServerSide;
 
-public class Session implements Receiver<ConnexionStatus> {
+public class Session implements Receiver<ConnectionStatus> {
 
     /**
      * The main component of a Session, the embedded Socket.
@@ -39,15 +40,15 @@ public class Session implements Receiver<ConnexionStatus> {
     /**
      * Save the current status of a Session.
      * <p>
-     * {@link ConnexionStatus#CONNECTED} the session is currently connected, you be able to receive and send Packets.
+     * {@link ConnectionStatus#CONNECTED} the session is currently connected, you be able to receive and send Packets.
      * <p>
-     * {@link ConnexionStatus#DISCONNECTED} the session is currently disconnected, you won't be able to receive and send
+     * {@link ConnectionStatus#DISCONNECTED} the session is currently disconnected, you won't be able to receive and send
      * Packets (ou can call {@link Session#reconnect(boolean)} or {@link Session#connect(String, int)} to reconnect the session).
      * But virtual stream are always opened.
      * <p>
-     * {@link ConnexionStatus#DESTROYED} the session is destroyed. She will not be able to reconnect. Virtual Stream are destroyed.
+     * {@link ConnectionStatus#DESTROYED} the session is destroyed. She will not be able to reconnect. Virtual Stream are destroyed.
      */
-    protected ConnexionStatus status = ConnexionStatus.DISCONNECTED;
+    protected ConnectionStatus status = ConnectionStatus.DISCONNECTED;
 
     /**
      * The time who take a session to auto destroy after be disconnected.
@@ -64,7 +65,7 @@ public class Session implements Receiver<ConnexionStatus> {
      */
     protected final ThreadPool executor = new ThreadPool();
     /**
-     * The Thread reading continually on Socket for new Packets. He is managed in {@link Session#onChanged(ConnexionStatus)}.
+     * The Thread reading continually on Socket for new Packets. He is managed in {@link Session#onChanged(ConnectionStatus)}.
      * His implementation could be find in {@link Session#internalReadLoop()};
      */
     protected Thread reader;
@@ -72,7 +73,7 @@ public class Session implements Receiver<ConnexionStatus> {
     /**
      * A virtual stream to listen status changes.
      */
-    protected final VirtualStream<ConnexionStatus> statusFlux = new VirtualStream<>();
+    protected final VirtualStream<ConnectionStatus> statusFlux = new VirtualStream<>();
     /**
      * A virtual stream to listen on packet receive.
      */
@@ -83,7 +84,7 @@ public class Session implements Receiver<ConnexionStatus> {
      */
     protected final Object lockerSend = new Object();
     /**
-     * Locker used in {@link Session#connect(String, int, ClientCertConfig)}, {@link Session#setStatus(ConnexionStatus)}, {@link Session#onChanged(ConnexionStatus)}.
+     * Locker used in {@link Session#connect(String, int, ClientCertConfig)}, {@link Session#setStatus(ConnectionStatus)}, {@link Session#onChanged(ConnectionStatus)}.
      */
     protected final Object lockerConnect = new Object();
 
@@ -113,7 +114,7 @@ public class Session implements Receiver<ConnexionStatus> {
         this.sessionType = sessionType;
         this.statusFlux.addReceiver(this);
         if (this.socket != null && this.socket.isConnected())
-            setStatus(ConnexionStatus.CONNECTED);
+            setStatus(ConnectionStatus.CONNECTED);
     }
 
     /**
@@ -124,10 +125,10 @@ public class Session implements Receiver<ConnexionStatus> {
     }
 
     /**
-     * @return true if the current {@link Session#status} is equal to {@link ConnexionStatus#CONNECTED}, false if not.
+     * @return true if the current {@link Session#status} is equal to {@link ConnectionStatus#CONNECTED}, false if not.
      */
     public boolean isConnected() {
-        return ConnexionStatus.isConnected(this.status);
+        return ConnectionStatus.isConnected(this.status);
     }
 
     /**
@@ -139,16 +140,16 @@ public class Session implements Receiver<ConnexionStatus> {
      * @param port    port.
      * @return the new status of the Session.
      */
-    public ConnexionStatus connect(final String address, final int port) {
+    public ConnectionStatus connect(final String address, final int port) {
         return connect(address, port, null);
     }
 
     /**
      * Try to connect the Session with creating a new Socket.
      * <p>
-     * If the Session is {@link SessionType#SERVER_SIDE} or {@link ConnexionStatus#CONNECTED} or {@link ConnexionStatus#DESTROYED}, this method will just return the current {@link Session#status}.
+     * If the Session is {@link SessionType#SERVER_SIDE} or {@link ConnectionStatus#CONNECTED} or {@link ConnectionStatus#DESTROYED}, this method will just return the current {@link Session#status}.
      * <p>
-     * If the session is currently {@link ConnexionStatus#DISCONNECTED}, this method will create a new Socket and try to connect it to a Server.
+     * If the session is currently {@link ConnectionStatus#DISCONNECTED}, this method will create a new Socket and try to connect it to a Server.
      * <p>
      * If the socket connect successfully he is assigned to the {@link Session#socket} and a new {@link Session#status} is emitted.
      * <p>
@@ -159,15 +160,15 @@ public class Session implements Receiver<ConnexionStatus> {
      * @param clientCertConfig the CertConfig, can be null.
      * @return the new status of the Session.
      */
-    public ConnexionStatus connect(final String address, final int port, @Nullable final ClientCertConfig clientCertConfig) {
+    public ConnectionStatus connect(final String address, final int port, @Nullable final ClientCertConfig clientCertConfig) {
         synchronized (this.lockerConnect) {
-            if (isServerSide(this.sessionType) || this.isConnected() || this.status == ConnexionStatus.DESTROYED)
+            if (isServerSide(this.sessionType) || this.isConnected() || this.status == ConnectionStatus.DESTROYED)
                 return this.status;
             try {
                 final Socket newSocket;
                 if ((newSocket = constructSocket(address, port, clientCertConfig)).isConnected() && integrityCheck(newSocket)) {
                     this.socket = newSocket;
-                    setStatus(ConnexionStatus.CONNECTED);
+                    setStatus(ConnectionStatus.CONNECTED);
                 }
             } catch (IOException e) {
                 logger.err("Handled output : " + e.getMessage());
@@ -189,7 +190,7 @@ public class Session implements Receiver<ConnexionStatus> {
      * @param secured if the socket is secured.
      * @return the new status of the Session.
      */
-    public ConnexionStatus reconnect(final boolean secured) {
+    public ConnectionStatus reconnect(final boolean secured) {
         if (secured)
             new IllegalStateException("Session.reconnect() method cannot be used on SECURED Session.").printStackTrace();
         if (!secured && socket != null)
@@ -216,7 +217,7 @@ public class Session implements Receiver<ConnexionStatus> {
         if (clientCertConfig == null)
             return new Socket(address, port);
         else
-            return SSLSocketKeystoreFactory.getSocketWithCert(address, port, clientCertConfig.input(), clientCertConfig.password(), clientCertConfig.secureType(), clientCertConfig.format());
+            return SSLSocketKeystoreFactory.getSocketWithCert(address, port, clientCertConfig.input(), clientCertConfig.password(), clientCertConfig.type(), clientCertConfig.format());
     }
 
     protected boolean integrityCheck(final Socket socket) {
@@ -232,7 +233,7 @@ public class Session implements Receiver<ConnexionStatus> {
      * @param status the new value of status.
      * @return false if status was changed, true if status was changed.
      */
-    protected boolean setStatus(final ConnexionStatus status) {
+    protected boolean setStatus(final ConnectionStatus status) {
         synchronized (this.lockerConnect) {
             if (this.status == status)
                 return false;
@@ -246,8 +247,8 @@ public class Session implements Receiver<ConnexionStatus> {
      * This method destroy this session, with closing {@link Session#socket} and destroying {@link Session#statusFlux} and {@link Session#packetFlux}.
      */
     public void destroy() {
-        setStatus(ConnexionStatus.DISCONNECTED);
-        setStatus(ConnexionStatus.DESTROYED);
+        setStatus(ConnectionStatus.DISCONNECTED);
+        setStatus(ConnectionStatus.DESTROYED);
         try {
             this.socket.close();
         } catch (IOException e) {
@@ -259,23 +260,23 @@ public class Session implements Receiver<ConnexionStatus> {
         this.sessionTimeOut = sessionTimeOut;
     }
 
-    public VirtualStream<ConnexionStatus> getStatusFlux() {
+    public VirtualStream<ConnectionStatus> getStatusFlux() {
         return this.statusFlux;
     }
 
-    public void addStatusListener(final Receiver<ConnexionStatus> statusReceiver) {
+    public void addStatusListener(final Receiver<ConnectionStatus> statusReceiver) {
         this.statusFlux.addReceiver(statusReceiver);
     }
 
-    public void removeStatusListener(final Receiver<ConnexionStatus> statusReceiver) {
+    public void removeStatusListener(final Receiver<ConnectionStatus> statusReceiver) {
         this.statusFlux.removeReceiver(statusReceiver);
     }
 
-    public ConnexionStatus nextStatus() {
+    public ConnectionStatus nextStatus() {
         return this.statusFlux.readASlash();
     }
 
-    public void slashStatus(final ConnexionStatus status) {
+    public void slashStatus(final ConnectionStatus status) {
         this.statusFlux.slash(status);
     }
 
@@ -288,16 +289,14 @@ public class Session implements Receiver<ConnexionStatus> {
     public boolean send(final SPacket packet) {
         synchronized (this.lockerSend) {
             try {
-                final byte[] buf = ByteBuffer.allocate(8 + packet.data.length)
-                        .putInt(packet.data.length)
-                        .putInt(packet.packetNumber)
-                        .put(packet.data)
-                        .array();
                 // TODO may be use a BufferedOutputStream to speed up the transfer !
-                socket.getOutputStream().write(buf);
+                socket.getOutputStream().write(ByteBuffer.allocate(4).putInt(packet.data.length).array());
+                socket.getOutputStream().write(ByteBuffer.allocate(4).putInt(packet.packetNumber).array());
+                socket.getOutputStream().write(packet.data);
                 socket.getOutputStream().flush();
                 return true;
             } catch (IOException e) {
+                e.printStackTrace();
                 logger.err("COULD'T SEND RETURN FALSE.");
                 return false;
             }
@@ -327,9 +326,9 @@ public class Session implements Receiver<ConnexionStatus> {
     }
 
     @Override
-    public void onChanged(ConnexionStatus value) {
+    public void onChanged(ConnectionStatus value) {
         synchronized (this.lockerConnect) {
-            if (value == ConnexionStatus.DISCONNECTED) {
+            if (value == ConnectionStatus.DISCONNECTED) {
 
                 this.reader.interrupt();
                 lastConnected = System.currentTimeMillis();
@@ -340,13 +339,13 @@ public class Session implements Receiver<ConnexionStatus> {
                         Thread.sleep(sessionTimeOut);
                     } catch (InterruptedException ignored) {
                     }
-                    if (this.status != ConnexionStatus.DESTROYED && lastConnected == lastConnectedTemp) {
+                    if (this.status != ConnectionStatus.DESTROYED && lastConnected == lastConnectedTemp) {
                         logger.log("Session TIME OUT.");
-                        setStatus(ConnexionStatus.DESTROYED);
+                        setStatus(ConnectionStatus.DESTROYED);
                     }
                 });
 
-            } else if (value == ConnexionStatus.CONNECTED) {
+            } else if (value == ConnectionStatus.CONNECTED) {
 
                 if (this.reader != null && this.reader.isAlive()) {
                     logger.err("COULDN'T CREATE A READER. A READER ALREADY EXIST !");
@@ -356,12 +355,12 @@ public class Session implements Receiver<ConnexionStatus> {
                 this.reader = new Thread(this::internalReadLoop);
                 this.reader.start();
 
-            } else if (status == ConnexionStatus.DESTROYED) {
+            } else if (status == ConnectionStatus.DESTROYED) {
 
                 logger.log("Session Destroyed.");
                 if (!this.statusFlux.isClosed()) {
                     this.statusFlux.removeReceiver(this);
-                    this.statusFlux.close(ConnexionStatus.DESTROYED);
+                    this.statusFlux.close(ConnectionStatus.DESTROYED);
                 }
                 if (!this.packetFlux.isClosed())
                     this.packetFlux.close(new RPacket(0, new byte[0]));
@@ -381,17 +380,17 @@ public class Session implements Receiver<ConnexionStatus> {
             int packetSize;
             int packetNumber;
 
-            while (this.isConnected() && in.read(intBuffer) != -1) {
+            while (this.isConnected()) {
+                in.readNBytes(intBuffer, 0, intBuffer.length);
                 packetSize = ByteBuffer.wrap(intBuffer).getInt();
-                in.read(intBuffer);
+                in.readNBytes(intBuffer, 0, intBuffer.length);
                 packetNumber = ByteBuffer.wrap(intBuffer).getInt();
-                byte[] datas = new byte[packetSize];
-                in.read(datas);
+                byte[] datas = in.readNBytes(packetSize);
                 this.packetFlux.emitValue(new RPacket(packetNumber, datas));
             }
 
             logger.log("Reader closing, other part closed the Session.");
-            setStatus(ConnexionStatus.DISCONNECTED);
+            setStatus(ConnectionStatus.DISCONNECTED);
 
         } catch (Exception e) {
             if (!this.isConnected())
@@ -404,7 +403,7 @@ public class Session implements Receiver<ConnexionStatus> {
     public String getStringID() {
         return "Session{" +
                 "id=" + socket.getInetAddress().getHostName()
-                + "port" + socket.getPort() + "}";
+                + ", port=" + socket.getPort() + "}";
     }
 
     @Override

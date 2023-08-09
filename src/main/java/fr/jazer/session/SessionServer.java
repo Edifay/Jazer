@@ -86,7 +86,7 @@ public class SessionServer implements Receiver<SessionServerStatus> {
     protected ServerSocket constructServer(final int port, @Nullable final ServerCertConfig certConfig) throws IOException, UnrecoverableKeyException, NoSuchAlgorithmException, KeyStoreException, KeyManagementException, CertificateException {
         if (certConfig == null) return new ServerSocket(port);
         else
-            return SSLServerSocketKeystoreFactory.getServerSocketWithCert(port, certConfig.input(), certConfig.password(), certConfig.type(), certConfig.certFormat());
+            return SSLServerSocketKeystoreFactory.getServerSocketWithCert(port, certConfig.input(), certConfig.password(), certConfig.type(), certConfig.format());
     }
 
     protected void setStatus(final SessionServerStatus status) {
