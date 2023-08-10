@@ -386,11 +386,12 @@ public class Session implements Receiver<ConnectionStatus> {
             int packetNumber;
 
             while (this.isConnected()) {
-                in.readNBytes(intBuffer, 0, intBuffer.length);
+                readNBytes(in, intBuffer, 0, intBuffer.length);
                 packetSize = ByteBuffer.wrap(intBuffer).getInt();
-                in.readNBytes(intBuffer, 0, intBuffer.length);
+                readNBytes(in, intBuffer, 0, intBuffer.length);
                 packetNumber = ByteBuffer.wrap(intBuffer).getInt();
-                byte[] datas = in.readNBytes(packetSize);
+                byte[] datas = new byte[packetSize];
+                readNBytes(in, datas, 0, packetSize);
                 this.packetFlux.emitValue(new RPacket(packetNumber, datas));
             }
 
@@ -402,6 +403,26 @@ public class Session implements Receiver<ConnectionStatus> {
                 logger.log("Reader stopped by closing the socket. " + e.getMessage());
             else
                 e.printStackTrace();
+        }
+    }
+
+    /**
+     * Reimplementation of InputStream.readNBytes to be supported by Java 8.
+     * --> {@link InputStream#readNBytes(byte[], int, int)}
+     */
+    public int readNBytes(InputStream stream, byte[] b, int off, int len) {
+        try {
+            int n = 0;
+            while (n < len) {
+                int count = 0;
+                count = stream.read(b, off + n, len - n);
+                if (count < 0)
+                    break;
+                n += count;
+            }
+            return n;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -428,4 +449,6 @@ public class Session implements Receiver<ConnectionStatus> {
                 ", logger=" + logger +
                 '}';
     }
+
+
 }
