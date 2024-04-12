@@ -384,9 +384,12 @@ public class Session implements Receiver<ConnectionStatus> {
             byte[] intBuffer = new byte[4];
             int packetSize;
             int packetNumber;
-
+            int read_byte;
+            
             while (this.isConnected()) {
-                readNBytes(in, intBuffer, 0, intBuffer.length);
+                read_byte = readNBytes(in, intBuffer, 0, intBuffer.length);
+                if (read_byte == 0)
+                    break;
                 packetSize = ByteBuffer.wrap(intBuffer).getInt();
                 readNBytes(in, intBuffer, 0, intBuffer.length);
                 packetNumber = ByteBuffer.wrap(intBuffer).getInt();
@@ -428,26 +431,26 @@ public class Session implements Receiver<ConnectionStatus> {
 
     public String getStringID() {
         return "Session{" +
-                "id=" + socket.getInetAddress()
-                + ", port=" + socket.getPort() + "}";
+               "id=" + socket.getInetAddress()
+               + ", port=" + socket.getPort() + "}";
     }
 
     @Override
     public String toString() {
         return "Session{" +
-                "socket=" + socket +
-                ", sessionType=" + sessionType +
-                ", status=" + status +
-                ", sessionTimeOut=" + sessionTimeOut +
-                ", lastConnected=" + lastConnected +
-                ", executor=" + executor +
-                ", reader=" + reader +
-                ", statusFlux=" + statusFlux +
-                ", packetFlux=" + packetFlux +
-                ", lockerSend=" + lockerSend +
-                ", lockerConnect=" + lockerConnect +
-                ", logger=" + logger +
-                '}';
+               "socket=" + socket +
+               ", sessionType=" + sessionType +
+               ", status=" + status +
+               ", sessionTimeOut=" + sessionTimeOut +
+               ", lastConnected=" + lastConnected +
+               ", executor=" + executor +
+               ", reader=" + reader +
+               ", statusFlux=" + statusFlux +
+               ", packetFlux=" + packetFlux +
+               ", lockerSend=" + lockerSend +
+               ", lockerConnect=" + lockerConnect +
+               ", logger=" + logger +
+               '}';
     }
 
 
